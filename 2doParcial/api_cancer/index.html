@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clasificador de tumores</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --fondo: #f4f3f1;
+    --carta: #ffffff;
+    --texto: #23201e;
+    --suave: #74706b;
+    --borde: #e3e0db;
+    --rojo: #8e2f2c;
+    --rojo-osc: #742522;
+    --rojo-claro: #f6e7e5;
+    --maligno: #b03a34;
+    --benigno: #2d6a56;
+    --benigno-claro: #e3efe9;
+    --sans: "Public Sans", "Segoe UI", system-ui, sans-serif;
+    --mono: "Roboto Mono", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--fondo);
+    color: var(--texto);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.45;
+  }
+
+  /* ---------- Encabezado ---------- */
+  header {
+    background: var(--rojo);
+    color: #fff;
+    border-bottom: 4px solid var(--rojo-osc);
+  }
+  .barra {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 20px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  header h1 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
+  header p { margin: 2px 0 0; font-size: 13px; color: #f1d6d3; }
+  .estado {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.12);
+    border: 1px solid rgba(255,255,255,.22);
+  }
+  .estado i { width: 8px; height: 8px; border-radius: 50%; background: #d8c9c7; }
+  .estado.ok i { background: #8fe0b9; box-shadow: 0 0 0 3px rgba(143,224,185,.25); }
+  .estado.error i { background: #ffb4a8; }
+
+  /* ---------- Distribución ---------- */
+  main {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 24px;
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) minmax(300px, 1fr);
+    gap: 20px;
+    align-items: start;
+  }
+  @media (max-width: 900px) { main { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 520px) {
+    main { padding: 16px; }
+    .barra { padding: 16px; }
+    .carta { padding: 16px; }
+    .pestana { flex-direction: column; gap: 4px; font-size: 13px; padding: 8px 4px; }
+  }
+
+  .carta {
+    background: var(--carta);
+    border: 1px solid var(--borde);
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .titulo { font-size: 13px; font-weight: 600; color: var(--suave); margin: 0 0 10px; }
+
+  /* ---------- Ejemplos ---------- */
+  .ejemplos { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+  .chip {
+    font: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--borde);
+    background: #faf9f7;
+    color: var(--texto);
+    cursor: pointer;
+    transition: border-color .15s, background .15s, transform .15s;
+  }
+  .chip:hover { border-color: #c9c4bd; transform: translateY(-1px); }
+  .chip i { width: 8px; height: 8px; border-radius: 50%; }
+  .chip.m i { background: var(--maligno); }
+  .chip.b i { background: var(--benigno); }
+  .chip.activo { border-color: var(--texto); background: #fff; box-shadow: 0 0 0 1px var(--texto); }
+
+  /* ---------- Pestañas ---------- */
+  .pestanas {
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    background: #efedea;
+    border-radius: 10px;
+    margin-bottom: 18px;
+  }
+  .pestana {
+    flex: 1;
+    min-width: 0;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 9px 10px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--suave);
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    transition: background .15s, color .15s;
+  }
+  .pestana:hover { color: var(--texto); }
+  .pestana[aria-selected="true"] { background: #fff; color: var(--texto); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+  .contador {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 500;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: #e3e0db;
+    color: var(--suave);
+  }
+  .contador.lleno { background: var(--benigno-claro); color: var(--benigno); }
+
+  /* ---------- Campos ---------- */
+  .campos {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px 16px;
+    animation: entrar .25s ease;
+  }
+  @media (max-width: 520px) { .campos { grid-template-columns: 1fr; } }
+  @keyframes entrar { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  .campo label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 5px;
+  }
+  .campo label .clave {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--maligno);
+  }
+  .campo input {
+    width: 100%;
+    font-family: var(--mono);
+    font-size: 14px;
+    padding: 9px 11px;
+    border: 1px solid var(--borde);
+    border-radius: 8px;
+    background: #fcfbfa;
+    color: var(--texto);
+    transition: border-color .15s, box-shadow .15s, background .15s;
+  }
+  .campo input:hover { border-color: #cfc9c1; }
+  .campo input:focus { outline: none; border-color: var(--rojo); box-shadow: 0 0 0 3px var(--rojo-claro); background: #fff; }
+  .campo input.falta { border-color: var(--maligno); background: #fff6f5; }
+  .campo input.cambio { animation: brillo .6s ease; }
+  @keyframes brillo { from { background: #fbeeca; } to { background: #fcfbfa; } }
+  .leyenda { font-size: 12px; color: var(--suave); margin: 14px 0 0; display: flex; align-items: center; gap: 6px; }
+  .leyenda i { width: 6px; height: 6px; border-radius: 50%; background: var(--maligno); }
+
+  /* ---------- Botones ---------- */
+  .acciones {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 20px;
+    padding-top: 18px;
+    border-top: 1px solid var(--borde);
+  }
+  .btn {
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 11px 18px;
+    border-radius: 9px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: background .15s, border-color .15s, transform .1s, box-shadow .15s;
+  }
+  .btn svg { width: 16px; height: 16px; flex: none; }
+  .btn:active { transform: scale(.97); }
+  .btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--rojo-claro), 0 0 0 4px var(--rojo); }
+  .btn-principal {
+    background: var(--rojo);
+    color: #fff;
+    margin-left: auto;
+    min-width: 150px;
+    box-shadow: 0 1px 0 var(--rojo-osc);
+  }
+  .btn-principal:hover { background: var(--rojo-osc); }
+  .btn-sec { background: #fff; color: var(--texto); border-color: var(--borde); }
+  .btn-sec:hover { border-color: #c9c4bd; background: #faf9f7; }
+  .btn:disabled { opacity: .65; cursor: progress; }
+  .giro { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.4); border-top-color: #fff; border-radius: 50%; animation: girar .7s linear infinite; }
+  @keyframes girar { to { transform: rotate(360deg); } }
+  @media (max-width: 520px) { .btn-principal { margin-left: 0; width: 100%; } }
+
+  .mensaje { font-size: 13px; color: var(--maligno); margin: 12px 0 0; min-height: 1em; }
+  .mensaje:empty { display: none; }
+
+  /* ---------- Resultado ---------- */
+  .lateral { display: flex; flex-direction: column; gap: 20px; position: sticky; top: 20px; }
+  @media (max-width: 900px) { .lateral { position: static; } }
+
+  .medidor { position: relative; width: 100%; max-width: 280px; margin: 4px auto 0; }
+  .medidor svg { width: 100%; display: block; }
+  .arco-fondo { fill: none; stroke: #ece9e5; stroke-width: 16; stroke-linecap: round; }
+  .arco { fill: none; stroke-width: 16; stroke-linecap: round; transition: stroke-dasharray .9s cubic-bezier(.2,.8,.2,1), stroke .3s; }
+  .lectura { position: absolute; left: 0; right: 0; bottom: 4px; text-align: center; }
+  .lectura strong { display: block; font-family: var(--mono); font-size: 30px; font-weight: 500; line-height: 1; }
+  .lectura span { font-size: 12px; color: var(--suave); }
+  .escala { display: flex; justify-content: space-between; max-width: 280px; margin: 4px auto 0; font-size: 11px; color: var(--suave); }
+
+  .veredicto {
+    text-align: center;
+    margin: 16px 0 0;
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    min-height: 1.2em;
+  }
+  .veredicto.m { color: var(--maligno); }
+  .veredicto.b { color: var(--benigno); }
+  .veredicto.vacio { font-size: 14px; font-weight: 400; color: var(--suave); }
+  .contraste {
+    display: none;
+    margin: 12px auto 0;
+    width: fit-content;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 6px 12px;
+    border-radius: 999px;
+  }
+  .contraste.si { display: block; background: var(--benigno-claro); color: var(--benigno); }
+  .contraste.no { display: block; background: var(--rojo-claro); color: var(--maligno); }
+  .aviso { font-size: 12px; color: var(--suave); text-align: center; margin: 16px 0 0; }
+
+  /* ---------- Modelo ---------- */
+  .cifras { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+  .cifra { background: #faf9f7; border-radius: 8px; padding: 10px 12px; }
+  .cifra strong { display: block; font-family: var(--mono); font-size: 20px; font-weight: 500; }
+  .cifra span { font-size: 12px; color: var(--suave); }
+  .top { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .top li { font-size: 13px; }
+  .top .fila { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 3px; }
+  .top .fila b { font-family: var(--mono); font-weight: 500; }
+  .top .pista { height: 5px; background: #ece9e5; border-radius: 3px; overflow: hidden; }
+  .top .pista div { height: 100%; width: 0; background: var(--rojo); border-radius: 3px; transition: width .8s ease; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="barra">
+    <div>
+      <h1>Clasificador de tumores de mama</h1>
+      <p>Regresión logística · Breast Cancer Wisconsin</p>
+    </div>
+    <span class="estado" id="estado" role="status"><i></i><span id="estadoTexto">Conectando…</span></span>
+  </div>
+</header>
+
+<main>
+  <section class="carta">
+    <p class="titulo">Cargar un ejemplo real</p>
+    <div class="ejemplos" id="ejemplos"></div>
+
+    <form id="formulario" novalidate>
+      <div class="pestanas" role="tablist" id="pestanas"></div>
+      <div class="campos" id="campos" role="tabpanel"></div>
+      <p class="leyenda"><i></i> Variable muy relacionada con el diagnóstico</p>
+
+      <div class="acciones">
+        <button type="button" class="btn btn-sec" id="btnAzar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M4 20 21 3"/><path d="M21 16v5h-5"/><path d="m15 15 6 6"/><path d="M4 4l5 5"/></svg>
+          Aleatorio
+        </button>
+        <button type="button" class="btn btn-sec" id="btnLimpiar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 3v6h6"/></svg>
+          Limpiar
+        </button>
+        <button type="submit" class="btn btn-principal" id="btnClasificar">
+          <span id="btnTexto">Clasificar</span>
+          <svg id="btnIcono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+        </button>
+      </div>
+      <p class="mensaje" id="mensaje" role="alert"></p>
+    </form>
+  </section>
+
+  <aside class="lateral">
+    <section class="carta" aria-live="polite">
+      <p class="titulo">Resultado</p>
+      <div class="medidor">
+        <svg viewBox="0 0 200 112" aria-hidden="true">
+          <path class="arco-fondo" d="M 16 100 A 84 84 0 0 1 184 100" pathLength="100"/>
+          <path class="arco" id="arco" d="M 16 100 A 84 84 0 0 1 184 100" pathLength="100" stroke-dasharray="0 100" stroke="#b03a34"/>
+        </svg>
+        <div class="lectura"><strong id="porcentaje">—</strong><span>probabilidad de malignidad</span></div>
+      </div>
+      <div class="escala"><span>Benigno</span><span>Maligno</span></div>
+      <p class="veredicto vacio" id="veredicto">Carga un ejemplo o ingresa los datos</p>
+      <p class="contraste" id="contraste"></p>
+      <p class="aviso">Prototipo académico. No es un diagnóstico médico.</p>
+    </section>
+
+    <section class="carta" id="cartaModelo" hidden>
+      <p class="titulo">Modelo</p>
+      <div class="cifras" id="cifras"></div>
+      <p class="titulo">Variables más relacionadas</p>
+      <ul class="top" id="top"></ul>
+    </section>
+  </aside>
+</main>
+
+<script>
+  const API = "http://127.0.0.1:8000";
+
+  const PROPIEDADES = [
+    ["radius", "Radio"], ["texture", "Textura"], ["perimeter", "Perímetro"],
+    ["area", "Área"], ["smoothness", "Suavidad"], ["compactness", "Compacidad"],
+    ["concavity", "Concavidad"], ["concave points", "Puntos cóncavos"],
+    ["symmetry", "Simetría"], ["fractal dimension", "Dimensión fractal"]
+  ];
+  const GRUPOS = [["mean", "Media"], ["error", "Error estándar"], ["worst", "Peor valor"]];
+  const columna = (base, g) => g === "mean" ? `mean ${base}` : g === "error" ? `${base} error` : `worst ${base}`;
+
+  // Orden estándar de las 30 columnas del conjunto de datos
+  const ORDEN = GRUPOS.flatMap(([g]) => PROPIEDADES.map(([b]) => columna(b, g)));
+
+  // Registros reales del conjunto de prueba (incluidos aquí por si la API no los entrega)
+  const EJEMPLOS = [
+    [256,"Maligno",[19.55,28.77,133.6,1207,0.0926,0.2063,0.1784,0.1144,0.1893,0.06232,0.8426,1.199,7.158,106.4,0.006356,0.04765,0.03863,0.01519,0.01936,0.005252,25.05,36.27,178.6,1926,0.1281,0.5329,0.4251,0.1941,0.2818,0.1005]],
+    [223,"Maligno",[15.75,20.25,102.6,761.3,0.1025,0.1204,0.1147,0.06462,0.1935,0.06303,0.3473,0.9209,2.244,32.19,0.004766,0.02374,0.02384,0.008637,0.01772,0.003131,19.56,30.29,125.9,1088,0.1552,0.448,0.3976,0.1479,0.3993,0.1064]],
+    [385,"Maligno",[14.6,23.29,93.97,664.7,0.08682,0.06636,0.0839,0.05271,0.1627,0.05416,0.4157,1.627,2.914,33.01,0.008312,0.01742,0.03389,0.01576,0.0174,0.002871,15.79,31.71,102.2,758.2,0.1312,0.1581,0.2675,0.1359,0.2477,0.06836]],
+    [428,"Benigno",[11.13,16.62,70.47,381.1,0.08151,0.03834,0.01369,0.0137,0.1511,0.06148,0.1415,0.9671,0.968,9.704,0.005883,0.006263,0.009398,0.006189,0.02009,0.002377,11.68,20.29,74.35,421.1,0.103,0.06219,0.0458,0.04044,0.2383,0.07083]],
+    [431,"Benigno",[12.4,17.68,81.47,467.8,0.1054,0.1316,0.07741,0.02799,0.1811,0.07102,0.1767,1.46,2.204,15.43,0.01,0.03295,0.04861,0.01167,0.02187,0.006005,12.88,22.91,89.61,515.8,0.145,0.2629,0.2403,0.0737,0.2556,0.09359]],
+    [518,"Benigno",[12.88,18.22,84.45,493.1,0.1218,0.1661,0.04825,0.05303,0.1709,0.07253,0.4426,1.169,3.176,34.37,0.005273,0.02329,0.01405,0.01244,0.01816,0.003299,15.05,24.37,99.31,674.7,0.1456,0.2961,0.1246,0.1096,0.2582,0.08893]],
+    [291,"Benigno",[14.96,19.1,97.03,687.3,0.08992,0.09823,0.0594,0.04819,0.1879,0.05852,0.2877,0.948,2.171,24.87,0.005332,0.02115,0.01536,0.01187,0.01522,0.002815,16.25,26.19,109.1,809.8,0.1313,0.303,0.1804,0.1489,0.2962,0.08472]],
+    [73,"Maligno",[13.8,15.79,90.43,584.1,0.1007,0.128,0.07789,0.05069,0.1662,0.06566,0.2787,0.6205,1.957,23.35,0.004717,0.02065,0.01759,0.009206,0.0122,0.00313,16.57,20.86,110.3,812.4,0.1411,0.3542,0.2779,0.1383,0.2589,0.103]]
+  ].map(([indice, real, v]) => ({
+    indice, diagnostico_real: real,
+    valores: Object.fromEntries(ORDEN.map((c, i) => [c, v[i]]))
+  }));
+
+  // Respaldo en caso de que la API no tenga la ruta /importancia
+  const CLAVES_RESPALDO = ["worst concave points","worst perimeter","mean concave points","worst radius","mean perimeter","worst area","mean radius","mean area","mean concavity","worst concavity"];
+
+  const $ = id => document.getElementById(id);
+  const valores = {};          // columna -> texto escrito
+  let columnas = ORDEN;
+  let claves = new Set(CLAVES_RESPALDO);
+  let grupoActivo = "mean";
+  let referencia = null;       // diagnóstico real del ejemplo cargado
+  let fuenteAzar = EJEMPLOS;
+
+  async function pedir(ruta, opciones) {
+    const r = await fetch(API + ruta, opciones);
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const det = d.detail ?? d;
+      throw new Error(typeof det === "string" ? det : JSON.stringify(det));
+    }
+    return d;
+  }
+
+  // ---------- Pestañas y campos ----------
+  function llenos(grupo) {
+    return PROPIEDADES.filter(([b]) => esNumero(valores[columna(b, grupo)])).length;
+  }
+  const esNumero = t => t !== undefined && t !== "" && Number.isFinite(Number(t));
+
+  function pintarPestanas() {
+    const cont = $("pestanas");
+    cont.replaceChildren();
+    GRUPOS.forEach(([g, nombre]) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "pestana";
+      b.setAttribute("role", "tab");
+      b.setAttribute("aria-selected", g === grupoActivo);
+      const n = llenos(g);
+      b.innerHTML = `${nombre} <span class="contador ${n === 10 ? "lleno" : ""}">${n}/10</span>`;
+      b.onclick = () => { grupoActivo = g; pintarPestanas(); pintarCampos(); };
+      cont.appendChild(b);
+    });
+  }
+
+  function pintarCampos(resaltar = false) {
+    const cont = $("campos");
+    cont.replaceChildren();
+    cont.style.animation = "none"; cont.offsetHeight; cont.style.animation = "";
+    PROPIEDADES.forEach(([base, nombre]) => {
+      const col = columna(base, grupoActivo);
+      const div = document.createElement("div");
+      div.className = "campo";
+      const id = "c_" + col.replace(/\s/g, "_");
+      div.innerHTML = `<label for="${id}">${claves.has(col) ? '<span class="clave"></span>' : ""}${nombre}</label>`;
+      const inp = document.createElement("input");
+      inp.id = id;
+      inp.type = "number";
+      inp.step = "any";
+      inp.inputMode = "decimal";
+      inp.placeholder = "0.00";
+      inp.title = col;
+      inp.value = valores[col] ?? "";
+      if (resaltar && inp.value !== "") inp.classList.add("cambio");
+      inp.addEventListener("input", () => {
+        valores[col] = inp.value;
+        inp.classList.remove("falta");
+        if (referencia) { referencia = null; marcarChip(null); }
+        pintarPestanas();
+      });
+      div.appendChild(inp);
+      cont.appendChild(div);
+    });
+  }
+
+  // ---------- Ejemplos ----------
+  function pintarEjemplos() {
+    const cont = $("ejemplos");
+    EJEMPLOS.forEach(e => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "chip " + (e.diagnostico_real === "Maligno" ? "m" : "b");
+      b.dataset.indice = e.indice;
+      b.innerHTML = `<i></i>Registro ${e.indice}`;
+      b.title = "Diagnóstico real: " + e.diagnostico_real;
+      b.onclick = () => cargar(e);
+      cont.appendChild(b);
+    });
+  }
+  function marcarChip(indice) {
+    document.querySelectorAll(".chip").forEach(c =>
+      c.classList.toggle("activo", Number(c.dataset.indice) === indice));
+  }
+
+  function cargar(muestra) {
+    Object.entries(muestra.valores).forEach(([c, v]) => (valores[c] = String(v)));
+    referencia = muestra.diagnostico_real;
+    marcarChip(muestra.indice);
+    limpiarResultado("Listo. Pulsa «Clasificar».");
+    $("mensaje").textContent = "";
+    pintarPestanas();
+    pintarCampos(true);
+  }
+
+  $("btnAzar").onclick = () => cargar(fuenteAzar[Math.floor(Math.random() * fuenteAzar.length)]);
+
+  $("btnLimpiar").onclick = () => {
+    Object.keys(valores).forEach(k => delete valores[k]);
+    referencia = null;
+    marcarChip(null);
+    limpiarResultado("Carga un ejemplo o ingresa los datos");
+    $("mensaje").textContent = "";
+    pintarPestanas();
+    pintarCampos();
+  };
+
+  // ---------- Resultado ----------
+  function limpiarResultado(texto) {
+    $("arco").setAttribute("stroke-dasharray", "0 100");
+    $("porcentaje").textContent = "—";
+    const v = $("veredicto");
+    v.className = "veredicto vacio";
+    v.textContent = texto;
+    $("contraste").className = "contraste";
+  }
+
+  function contar(destino, duracion = 900) {
+    const el = $("porcentaje");
+    const inicio = performance.now();
+    const paso = t => {
+      const k = Math.min(1, (t - inicio) / duracion);
+      const suave = 1 - Math.pow(1 - k, 3);
+      el.textContent = (destino * suave).toFixed(1) + "%";
+      if (k < 1) requestAnimationFrame(paso);
+    };
+    requestAnimationFrame(paso);
+  }
+
+  function mostrar(datos) {
+    const pm = datos.probabilidades_estimadas.Maligno ?? 0;
+    const esM = datos.resultado === "Maligno";
+    const arco = $("arco");
+    arco.setAttribute("stroke", esM ? "#b03a34" : "#2d6a56");
+    arco.setAttribute("stroke-dasharray", "0 100");
+    requestAnimationFrame(() => requestAnimationFrame(() =>
+      arco.setAttribute("stroke-dasharray", `${Math.max(pm * 100, 0.5)} 100`)));
+    contar(pm * 100);
+
+    const v = $("veredicto");
+    v.className = "veredicto " + (esM ? "m" : "b");
+    v.textContent = datos.resultado;
+
+    const c = $("contraste");
+    if (referencia) {
+      const ok = referencia === datos.resultado;
+      c.className = "contraste " + (ok ? "si" : "no");
+      c.textContent = ok ? `✓ Coincide con el diagnóstico real` : `✗ El diagnóstico real era ${referencia}`;
+    } else {
+      c.className = "contraste";
+    }
+  }
+
+  $("formulario").addEventListener("submit", async ev => {
+    ev.preventDefault();
+    const parametros = {};
+    for (const col of columnas) {
+      if (!esNumero(valores[col])) {
+        const g = col.startsWith("mean ") ? "mean" : col.startsWith("worst ") ? "worst" : "error";
+        grupoActivo = g;
+        pintarPestanas();
+        pintarCampos();
+        const inp = $("c_" + col.replace(/\s/g, "_"));
+        if (inp) { inp.classList.add("falta"); inp.focus(); }
+        $("mensaje").textContent = "Faltan datos en la pestaña «" + GRUPOS.find(x => x[0] === g)[1] + "».";
+        return;
+      }
+      parametros[col] = Number(valores[col]);
+    }
+
+    const btn = $("btnClasificar");
+    btn.disabled = true;
+    $("btnTexto").textContent = "Analizando";
+    $("btnIcono").outerHTML = '<span class="giro" id="btnIcono"></span>';
+    $("mensaje").textContent = "";
+    try {
+      const datos = await pedir("/predecir", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ parametros })
+      });
+      mostrar(datos);
+    } catch (e) {
+      $("mensaje").textContent = "No se pudo clasificar: " + e.message;
+    } finally {
+      btn.disabled = false;
+      $("btnTexto").textContent = "Clasificar";
+      $("btnIcono").outerHTML = '<svg id="btnIcono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>';
+    }
+  });
+
+  // ---------- Panel del modelo ----------
+  function pintarModelo(metricas, importancia) {
+    if (!metricas && !importancia) return;
+    $("cartaModelo").hidden = false;
+    if (metricas) {
+      $("cifras").innerHTML = `
+        <div class="cifra"><strong>${(metricas.exactitud * 100).toFixed(1)}%</strong><span>exactitud</span></div>
+        <div class="cifra"><strong>${metricas.aciertos}/${metricas.total_prueba}</strong><span>aciertos en prueba</span></div>`;
+    } else {
+      $("cifras").remove();
+    }
+    const lista = $("top");
+    if (!importancia) { lista.previousElementSibling.remove(); lista.remove(); return; }
+    const top = importancia.slice(0, 5);
+    const max = top[0].absoluta;
+    top.forEach(item => {
+      const li = document.createElement("li");
+      li.innerHTML = `<div class="fila"><span></span><b>${item.absoluta.toFixed(3)}</b></div><div class="pista"><div></div></div>`;
+      li.querySelector("span").textContent = item.parametro;
+      lista.appendChild(li);
+      requestAnimationFrame(() => requestAnimationFrame(() =>
+        (li.querySelector(".pista div").style.width = (item.absoluta / max) * 100 + "%")));
+    });
+  }
+
+  // ---------- Arranque ----------
+  async function iniciar() {
+    pintarEjemplos();
+    pintarPestanas();
+    pintarCampos();
+
+    try {
+      const d = await pedir("/parametros");
+      columnas = d.parametros;
+      $("estado").className = "estado ok";
+      $("estadoTexto").textContent = "API conectada";
+    } catch {
+      $("estado").className = "estado error";
+      $("estadoTexto").textContent = "API desconectada";
+      $("mensaje").textContent = "No hay conexión con la API. Enciéndela con: uvicorn api:app --reload";
+      return;
+    }
+
+    const [m, imp, reg] = await Promise.allSettled([
+      pedir("/metricas"),
+      pedir("/importancia?limite=10"),
+      pedir("/registros-prueba?limite=200")
+    ]);
+    const importancia = imp.status === "fulfilled" ? imp.value.importancia : null;
+    if (importancia) {
+      claves = new Set(importancia.map(x => x.parametro));
+      pintarCampos();
+    }
+    pintarModelo(m.status === "fulfilled" ? m.value : null, importancia);
+    if (reg.status === "fulfilled" && reg.value.registros?.length) fuenteAzar = reg.value.registros;
+  }
+
+  iniciar();
+</script>
+</body>
+</html>
